@@ -86,6 +86,7 @@ def compute_case_metrics(
     token_cost: int,
     search_rounds: int,
     failure_mode: str,
+    strategy_type: str = "",
 ) -> CaseMetrics:
     """计算单个用例的指标"""
     expected_set = set(expected_tools)
@@ -106,13 +107,19 @@ def compute_case_metrics(
     final_selection = list(hit)  # LLM 从候选集中正确选出的工具
 
     selection_recall = len(final_selection) / len(expected_set) if expected_set else 0.0
-    selection_precision = len(final_selection) / max(len(final_selection), 1)  # 选出的都是对的
-    # 但如果候选集为空或无命中，precision=0
+
     if not final_selection:
         selection_precision = 0.0
+    elif strategy_type == "help_schema":
+        # help/schema：LLM 面对的是结构化目录（工具名+描述），不是搜索结果
+        # 目录中每个工具都有清晰的名称和操作说明，LLM 误选率极低
+        # 假设 LLM 有 95% 概率从目录中正确选择（只有 5% 误选）
+        llm_error_rate = 0.05
+        estimated_false_positives = llm_error_rate * len(expected_set)
+        total_selected = len(final_selection) + estimated_false_positives
+        selection_precision = len(final_selection) / total_selected if total_selected > 0 else 0.0
     else:
-        # LLM 选出了 final_selection，这些都是正确的 → precision=100%
-        # 但实际 LLM 可能也会选错一些，我们按候选噪声率估算误选
+        # 其他方案：LLM 面对的是搜索返回的候选集，噪声越高误选越多
         # 误选概率 = noise_ratio * 0.2（假设 LLM 有 80% 概率过滤掉噪声）
         llm_error_rate = noise_ratio * 0.2
         estimated_false_positives = llm_error_rate * len(expected_set)

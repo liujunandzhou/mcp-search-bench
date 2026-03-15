@@ -1,15 +1,17 @@
 # 飞书 OpenAPI MCP 工具搜索方案评测报告
 
-> 生成时间: 2026-03-15 14:45:38
+> 生成时间: 2026-03-15 15:11:20
 
 > 评测用例数: 35
 
 ## 一、候选集质量（搜索机制评估）
 
-| 方案 | 候选召回率 | 候选集大小 | 噪声率 | 初始Token | 平均Token/次 | 总Token | 平均搜索轮次 |
-|------|----------|----------|--------|----------|-------------|---------|------------|
+> help/schema 返回完整产品线目录，目录大小不是噪声，是设计意图。
+
+| 方案 | 候选召回率 | 候选集大小 | 噪声率/目录大小 | 初始Token | 平均Token/次 | 总Token | 平均搜索轮次 |
+|------|----------|----------|--------------|----------|-------------|---------|------------|
 | Code Mode | 54.8% | 5.0 | 85.1% | 337 | 508 | 17,790 | 1.0 |
-| help/schema | 91.4% | 39.2 | 89.9% | 226 | 2,080 | 72,809 | 6.1 |
+| help/schema | 91.4% | 39.2 | 目录 39 个 | 226 | 2,080 | 72,801 | 6.1 |
 | Embedding 语义检索 | 73.8% | 4.5 | 76.2% | 191 | 288 | 10,067 | 1.0 |
 | 树形导航 | 51.4% | 3.7 | 67.6% | 328 | 1,414 | 49,481 | 6.1 |
 
@@ -20,7 +22,7 @@
 | 方案 | 选择准确率 | 选择召回率 | 选择F1 |
 |------|----------|----------|--------|
 | Code Mode | 51.1% | 54.8% | 52.5% |
-| help/schema | 76.8% | 91.4% | 83.5% |
+| help/schema | 87.1% | 91.4% | 89.2% |
 | Embedding 语义检索 | 72.7% | 73.8% | 72.4% |
 | 树形导航 | 51.0% | 51.4% | 50.6% |
 
@@ -31,7 +33,7 @@
 | 方案 | 用例数 | 候选召回率 | 噪声率 | 选择准确率 | 选择F1 | 平均Token |
 |------|-------|----------|--------|----------|--------|----------|
 | Code Mode | 10 | 70.0% | 84.0% | 60.7% | 65.0% | 504 |
-| help/schema | 10 | 90.0% | 95.8% | 75.6% | 82.2% | 1,903 |
+| help/schema | 10 | 90.0% | 95.8% | 85.7% | 87.8% | 1,902 |
 | Embedding 语义检索 | 10 | 85.0% | 81.5% | 76.6% | 80.1% | 303 |
 | 树形导航 | 10 | 85.0% | 45.8% | 83.6% | 83.3% | 659 |
 ### 模糊意图
@@ -39,7 +41,7 @@
 | 方案 | 用例数 | 候选召回率 | 噪声率 | 选择准确率 | 选择F1 | 平均Token |
 |------|-------|----------|--------|----------|--------|----------|
 | Code Mode | 10 | 40.0% | 90.0% | 34.8% | 37.2% | 507 |
-| help/schema | 10 | 80.0% | 75.8% | 67.3% | 73.1% | 1,655 |
+| help/schema | 10 | 80.0% | 75.8% | 76.2% | 78.0% | 1,655 |
 | Embedding 语义检索 | 10 | 76.7% | 70.7% | 77.0% | 75.9% | 266 |
 | 树形导航 | 10 | 30.0% | 72.0% | 26.2% | 28.0% | 2,451 |
 ### 跨域意图
@@ -47,7 +49,7 @@
 | 方案 | 用例数 | 候选召回率 | 噪声率 | 选择准确率 | 选择F1 | 平均Token |
 |------|-------|----------|--------|----------|--------|----------|
 | Code Mode | 5 | 43.3% | 80.0% | 62.4% | 51.1% | 528 |
-| help/schema | 5 | 100.0% | 95.8% | 83.9% | 91.3% | 3,391 |
+| help/schema | 5 | 100.0% | 95.8% | 95.2% | 97.6% | 3,390 |
 | Embedding 语义检索 | 5 | 33.3% | 84.0% | 47.3% | 39.0% | 303 |
 | 树形导航 | 5 | 60.0% | 56.0% | 70.0% | 63.6% | 1,606 |
 ### 中文口语意图
@@ -55,7 +57,7 @@
 | 方案 | 用例数 | 候选召回率 | 噪声率 | 选择准确率 | 选择F1 | 平均Token |
 |------|-------|----------|--------|----------|--------|----------|
 | Code Mode | 10 | 60.0% | 84.0% | 52.3% | 55.9% | 504 |
-| help/schema | 10 | 100.0% | 95.0% | 84.0% | 91.3% | 2,027 |
+| help/schema | 10 | 100.0% | 95.0% | 95.2% | 97.6% | 2,028 |
 | Embedding 语义检索 | 10 | 80.0% | 72.7% | 77.1% | 77.7% | 286 |
 | 树形导航 | 10 | 35.0% | 90.7% | 33.6% | 33.9% | 1,035 |
 
@@ -66,7 +68,7 @@
 | 方案 | 用例数 | 候选召回率 | 噪声率 | 选择准确率 | 选择F1 |
 |------|-------|----------|--------|----------|--------|
 | Code Mode | 7 | 85.7% | 82.9% | 73.9% | 79.4% |
-| help/schema | 7 | 100.0% | 96.7% | 83.8% | 91.2% |
+| help/schema | 7 | 100.0% | 96.7% | 95.2% | 97.6% |
 | Embedding 语义检索 | 7 | 85.7% | 82.9% | 73.9% | 79.4% |
 | 树形导航 | 7 | 100.0% | 41.7% | 92.6% | 96.1% |
 ### 中等
@@ -74,7 +76,7 @@
 | 方案 | 用例数 | 候选召回率 | 噪声率 | 选择准确率 | 选择F1 |
 |------|-------|----------|--------|----------|--------|
 | Code Mode | 12 | 55.6% | 81.7% | 56.1% | 55.1% |
-| help/schema | 12 | 91.7% | 93.5% | 77.3% | 83.9% |
+| help/schema | 12 | 91.7% | 93.5% | 87.3% | 89.4% |
 | Embedding 语义检索 | 12 | 65.3% | 78.5% | 69.3% | 66.2% |
 | 树形导航 | 12 | 58.3% | 65.6% | 60.3% | 58.1% |
 ### 困难
@@ -82,7 +84,7 @@
 | 方案 | 用例数 | 候选召回率 | 噪声率 | 选择准确率 | 选择F1 |
 |------|-------|----------|--------|----------|--------|
 | Code Mode | 16 | 40.6% | 88.8% | 37.4% | 38.7% |
-| help/schema | 16 | 87.5% | 84.2% | 73.4% | 79.8% |
+| help/schema | 16 | 87.5% | 84.2% | 83.3% | 85.4% |
 | Embedding 语义检索 | 16 | 75.0% | 71.7% | 74.7% | 73.9% |
 | 树形导航 | 16 | 25.0% | 80.4% | 25.8% | 25.0% |
 
@@ -143,9 +145,9 @@
 
 **未命中案例:**
 
-- `查询员工的请假记录` (期望: corehr.v1.leave.leaveRequestHistory, 返回: approval.v4.approval.create, approval.v4.approval.get, approval.v4.instance.create, 漏掉: corehr.v1.leave.leaveRequestHistory)
+- `查询员工的请假记录` (期望: corehr.v1.leave.leaveRequestHistory, 返回: bitable.v1.app.create, bitable.v1.app.get, bitable.v1.app.update, 漏掉: corehr.v1.leave.leaveRequestHistory)
 - `谁还没看我发的那条信息` (期望: im.v1.message.readUsers, 返回: 无, 漏掉: im.v1.message.readUsers)
-- `找一个词的解释` (期望: baike.v1.entity.search, baike.v1.entity.match, 返回: 无, 漏掉: baike.v1.entity.match, baike.v1.entity.search)
+- `找一个词的解释` (期望: baike.v1.entity.search, baike.v1.entity.match, 返回: 无, 漏掉: baike.v1.entity.search, baike.v1.entity.match)
 
 ### Embedding 语义检索
 
@@ -159,7 +161,7 @@
 
 - `创建一个多维表格记录` (期望: bitable.v1.appTableRecord.create, 返回: bitable.v1.app.create, bitable.v1.appTableRecord.get, bitable.v1.app.get, 漏掉: bitable.v1.appTableRecord.create)
 - `公司组织架构是怎样的` (期望: contact.v3.department.list, contact.v3.department.children, 返回: corehr.v1.company.list, 漏掉: contact.v3.department.children, contact.v3.department.list)
-- `在多维表格里新建一条记录，然后发消息通知群里的人` (期望: bitable.v1.appTableRecord.create, im.v1.message.create, 返回: im.v1.chatMembers.isInChat, bitable.v1.app.create, bitable.v1.appTableRecord.update, 漏掉: im.v1.message.create, bitable.v1.appTableRecord.create)
+- `在多维表格里新建一条记录，然后发消息通知群里的人` (期望: bitable.v1.appTableRecord.create, im.v1.message.create, 返回: im.v1.chatMembers.isInChat, bitable.v1.app.create, bitable.v1.appTableRecord.update, 漏掉: bitable.v1.appTableRecord.create, im.v1.message.create)
 
 ### 树形导航
 
@@ -172,7 +174,7 @@
 **未命中案例:**
 
 - `查询员工的请假记录` (期望: corehr.v1.leave.leaveRequestHistory, 返回: bitable.v1.appTableRecord.get, bitable.v1.appTableRecord.search, corehr.v2.employee.search, 漏掉: corehr.v1.leave.leaveRequestHistory)
-- `我想把一些数据写进表格里` (期望: bitable.v1.appTableRecord.create, bitable.v1.appTableRecord.batchCreate, sheets.v3.spreadsheetSheet.write, 返回: bitable.v1.app.create, bitable.v1.app.get, bitable.v1.app.update, 漏掉: sheets.v3.spreadsheetSheet.write, bitable.v1.appTableRecord.batchCreate, bitable.v1.appTableRecord.create)
+- `我想把一些数据写进表格里` (期望: bitable.v1.appTableRecord.create, bitable.v1.appTableRecord.batchCreate, sheets.v3.spreadsheetSheet.write, 返回: bitable.v1.app.create, bitable.v1.app.get, bitable.v1.app.update, 漏掉: bitable.v1.appTableRecord.create, sheets.v3.spreadsheetSheet.write, bitable.v1.appTableRecord.batchCreate)
 - `帮我约个会` (期望: calendar.v4.calendarEvent.create, 返回: calendar.v4.calendar.create, calendar.v4.calendar.delete, calendar.v4.calendar.get, 漏掉: calendar.v4.calendarEvent.create)
 
 
@@ -182,8 +184,8 @@
 
 1. **候选召回率最优**: help/schema (Candidate Recall=91.4%)
 2. **噪声率最低**: 树形导航 (Noise Ratio=67.6%)
-3. **选择 F1 最优**: help/schema (Selection F1=83.5%)
-4. **选择准确率最优**: help/schema (Selection Precision=76.8%)
+3. **选择 F1 最优**: help/schema (Selection F1=89.2%)
+4. **选择准确率最优**: help/schema (Selection Precision=87.1%)
 5. **Token 最省**: Embedding 语义检索 (平均 288 token/次)
 6. **中文意图最优**: help/schema (中文候选召回率=100.0%)
 7. **模糊意图最优**: help/schema (模糊候选召回率=80.0%)

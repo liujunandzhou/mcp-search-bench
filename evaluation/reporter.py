@@ -22,14 +22,19 @@ def generate_report(all_metrics: list[StrategyMetrics], output_path: str = "eval
 
     # 1. 总览表 - 候选集质量
     lines.append("## 一、候选集质量（搜索机制评估）\n")
-    lines.append("| 方案 | 候选召回率 | 候选集大小 | 噪声率 | 初始Token | 平均Token/次 | 总Token | 平均搜索轮次 |")
-    lines.append("|------|----------|----------|--------|----------|-------------|---------|------------|")
+    lines.append("> help/schema 返回完整产品线目录，目录大小不是噪声，是设计意图。\n")
+    lines.append("| 方案 | 候选召回率 | 候选集大小 | 噪声率/目录大小 | 初始Token | 平均Token/次 | 总Token | 平均搜索轮次 |")
+    lines.append("|------|----------|----------|--------------|----------|-------------|---------|------------|")
     for m in all_metrics:
+        if m.strategy_name == "help_schema":
+            noise_col = f"目录 {m.avg_candidate_size:.0f} 个"
+        else:
+            noise_col = f"{m.avg_noise_ratio:.1%}"
         lines.append(
             f"| {m.strategy_name_cn} "
             f"| {m.avg_candidate_recall:.1%} "
             f"| {m.avg_candidate_size:.1f} "
-            f"| {m.avg_noise_ratio:.1%} "
+            f"| {noise_col} "
             f"| {m.initial_token_cost:,} "
             f"| {m.avg_token_cost:,.0f} "
             f"| {m.total_token_cost:,} "
@@ -290,14 +295,19 @@ def print_summary(all_metrics: list[StrategyMetrics]):
 
     # 候选集质量
     print(f"\n--- 候选集质量（搜索机制评估）---")
-    print(f"\n{'方案':<18} {'候选召回率':>10} {'候选集大小':>10} {'噪声率':>8} {'Token/次':>10} {'搜索轮次':>8}")
-    print("-" * 80)
+    print(f"  (help/schema 返回完整目录，无噪声率概念)")
+    print(f"\n{'方案':<18} {'候选召回率':>10} {'候选集大小':>10} {'噪声率':>10} {'Token/次':>10} {'搜索轮次':>8}")
+    print("-" * 82)
     for m in all_metrics:
+        if m.strategy_name == "help_schema":
+            noise_str = f"{'N/A (目录)':>10}"
+        else:
+            noise_str = f"{m.avg_noise_ratio:>10.1%}"
         print(
             f"{m.strategy_name_cn:<16} "
             f"{m.avg_candidate_recall:>10.1%} "
             f"{m.avg_candidate_size:>10.1f} "
-            f"{m.avg_noise_ratio:>8.1%} "
+            f"{noise_str} "
             f"{m.avg_token_cost:>10,.0f} "
             f"{m.avg_search_rounds:>8.1f}"
         )

@@ -46,6 +46,7 @@ def run_strategy_evaluation(strategy, dataset, top_k=5):
             token_cost=result.token_cost,
             search_rounds=result.search_rounds,
             failure_mode=result.failure_mode,
+            strategy_type=strategy.name,
         )
         case_metrics_list.append(cm)
 
