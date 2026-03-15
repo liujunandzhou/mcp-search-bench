@@ -27,7 +27,7 @@ from evaluation.metrics import compute_case_metrics, aggregate_metrics
 from evaluation.reporter import generate_report, print_summary
 
 
-def run_strategy_evaluation(strategy, dataset, top_k=10):
+def run_strategy_evaluation(strategy, dataset, top_k=5):
     """对单个策略运行所有评测用例"""
     case_metrics_list = []
 

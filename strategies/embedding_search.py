@@ -17,6 +17,42 @@ try:
 except ImportError:
     HAS_JIEBA = False
 
+# 工具同义词扩展：帮助 TF-IDF 匹配口语化表达
+TOOL_SYNONYMS = {
+    "im.v1.message.create": ["发消息", "通知", "告知", "发送", "发个"],
+    "im.v1.chat.create": ["拉群", "建群", "拉个群"],
+    "im.v1.chatMembers.create": ["拉人", "加人", "邀请入群", "加进去"],
+    "im.v1.message.list": ["聊天记录", "翻翻", "新消息", "看消息", "历史消息"],
+    "im.v1.message.readUsers": ["已读", "谁看了", "谁没看"],
+    "im.v1.message.urgentApp": ["加急", "催", "催一下"],
+    "im.v1.messageReaction.create": ["表情", "回应", "表情回复"],
+    "im.v1.pin.create": ["钉一下", "置顶", "Pin"],
+    "calendar.v4.calendarEvent.create": ["约会议", "约个会", "开会", "安排会议", "挂日程", "安排"],
+    "calendar.v4.calendarEvent.list": ["日程表", "日历", "日程列表"],
+    "calendar.v4.timeoffEvent.create": ["请假", "休假"],
+    "bitable.v1.appTableRecord.create": ["写数据", "录入", "写进表格", "新增数据"],
+    "bitable.v1.appTableRecord.list": ["看数据", "查数据", "数据列表"],
+    "bitable.v1.appTableRecord.search": ["搜数据", "查询数据", "找数据"],
+    "bitable.v1.appTableField.list": ["看字段", "字段列表", "有哪些字段"],
+    "contact.v3.user.get": ["联系方式", "找人", "查人"],
+    "contact.v3.user.create": ["开通账号", "开通权限", "新同事"],
+    "contact.v3.department.list": ["组织架构", "部门结构"],
+    "approval.v4.instance.create": ["发起审批", "提交审批", "请假审批"],
+    "approval.v4.task.list": ["待审批", "审批待办"],
+    "drive.v1.permission.create": ["分享文档", "分享给同事", "共享"],
+    "attendance.v1.userTask.query": ["打卡记录", "谁没打卡", "打卡情况"],
+    "attendance.v1.userStatsData.query": ["考勤统计", "考勤数据"],
+    "wiki.v2.space.getNode": ["查资料", "知识库资料"],
+    "baike.v1.entity.search": ["查词条", "术语", "词典搜索"],
+    "baike.v1.entity.create": ["加术语", "加词条", "飞书百科"],
+    "admin.v1.badgeGrant.create": ["发勋章", "颁发勋章"],
+    "task.v2.task.create": ["定任务", "分配任务", "建任务"],
+    "corehr.v1.person.create": ["入职录入", "录入HR", "新员工"],
+    "corehr.v1.employment.create": ["入职", "雇佣"],
+    "corehr.v1.leave.leaveRequestHistory": ["请假记录", "假期记录"],
+    "search.v2.message.create": ["搜索消息", "搜消息"],
+}
+
 try:
     from sklearn.feature_extraction.text import TfidfVectorizer
     from sklearn.metrics.pairwise import cosine_similarity
@@ -88,8 +124,11 @@ class EmbeddingSearchStrategy(SearchStrategy):
         for tool in self._all_tools:
             # 构建丰富的文本表示
             meta = CATEGORY_META.get(tool.category, {})
+            # 扩展同义词，增强语义覆盖
+            synonyms = TOOL_SYNONYMS.get(tool.tool_id, [])
             text_parts = [
                 tool.description,
+                tool.description,  # 重复中文描述增加权重
                 tool.description_en,
                 tool.tool_id.replace(".", " "),
                 tool.category,
@@ -99,6 +138,7 @@ class EmbeddingSearchStrategy(SearchStrategy):
                 meta.get("description", ""),
                 " ".join(meta.get("keywords", [])),
                 " ".join(tool.tags),
+                " ".join(synonyms),
             ]
             if tool.params:
                 text_parts.append(tool.param_summary)
@@ -191,12 +231,19 @@ class EmbeddingSearchStrategy(SearchStrategy):
     def description(self) -> str:
         return "工具描述向量化，相似度召回。通用性高，处理中文模糊意图效果好。"
 
-    def search(self, query: str, top_k: int = 10) -> SearchResult:
-        # 语义搜索
+    def search(self, query: str, top_k: int = 5) -> SearchResult:
+        # 语义搜索（先取更多候选，再动态截断）
         if HAS_SKLEARN:
-            results = self._search_sklearn(query, top_k)
+            results = self._search_sklearn(query, top_k * 3)
         else:
-            results = self._search_simple(query, top_k)
+            results = self._search_simple(query, top_k * 3)
+
+        # 动态截断：只保留得分 >= 最高分 40% 的结果
+        if results:
+            best_score = results[0][1]
+            score_threshold = best_score * 0.4
+            results = [(i, s) for i, s in results if s >= score_threshold]
+            results = results[:top_k]
 
         result_tools = [self._all_tools[i] for i, _ in results]
         tool_ids = [t.tool_id for t in result_tools]

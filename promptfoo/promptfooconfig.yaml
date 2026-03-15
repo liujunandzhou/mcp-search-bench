@@ -1,0 +1,72 @@
+# 飞书 OpenAPI MCP 工具搜索方案评测 - promptfoo 配置
+# 使用真实 LLM 进行端到端工具选择评测
+#
+# 使用方式:
+#   promptfoo eval
+#   promptfoo view
+
+description: "飞书 MCP 工具搜索方案对比评测"
+
+# 评测的 prompt 模板（4 种方案）
+prompts:
+  - file://prompts/code_mode.txt
+  - file://prompts/help_schema.txt
+  - file://prompts/embedding.txt
+  - file://prompts/tree_navigation.txt
+
+# LLM providers
+providers:
+  - id: anthropic:messages:claude-sonnet-4-20250514
+    label: claude-sonnet
+    config:
+      max_tokens: 1024
+      temperature: 0
+      tools: &tools
+        - type: function
+          function:
+            name: search_tools
+            description: "搜索飞书 OpenAPI 工具。返回匹配的工具 ID 列表。"
+            parameters:
+              type: object
+              properties:
+                query:
+                  type: string
+                  description: "搜索查询"
+                strategy:
+                  type: string
+                  enum: ["code_mode", "help_schema", "embedding", "tree_navigation"]
+                  description: "使用的搜索策略"
+              required: ["query", "strategy"]
+        - type: function
+          function:
+            name: select_tools
+            description: "从候选工具中选择最匹配用户意图的工具。返回工具 ID 列表。"
+            parameters:
+              type: object
+              properties:
+                tool_ids:
+                  type: array
+                  items:
+                    type: string
+                  description: "选中的工具 ID 列表"
+              required: ["tool_ids"]
+      tool_choice: auto
+
+# 评测数据集
+tests: file://tests/eval_cases.yaml
+
+# 默认 assertion 配置
+defaultTest:
+  options:
+    # 用 transform 提取 tool_call 中选择的工具列表
+    transform: |
+      if (Array.isArray(output)) {
+        const toolCalls = output.filter(o => o.type === 'tool_use');
+        const selectCall = toolCalls.find(tc => tc.name === 'select_tools');
+        if (selectCall && selectCall.input && selectCall.input.tool_ids) {
+          return JSON.stringify(selectCall.input.tool_ids);
+        }
+        // 如果没有 select_tools 调用，提取所有工具相关输出
+        return JSON.stringify(toolCalls.map(tc => tc.name));
+      }
+      return output;

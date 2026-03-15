@@ -83,10 +83,35 @@ class CodeModeStrategy(SearchStrategy):
         """从查询中提取关键词（模拟 LLM 从意图中提取路径关键词）"""
         keywords = []
 
-        # 先查语义索引
+        # 先查语义索引（精确匹配）
         for kw, cat in SEMANTIC_INDEX.items():
             if kw in query.lower():
                 keywords.append(cat)
+
+        # 口语化表达 → 分类映射（Code Mode 的弱点，需要 LLM 理解）
+        colloquial_map = {
+            "约个会": "calendar", "开会": "calendar", "会议": "calendar",
+            "安排": "calendar", "日程": "calendar", "挂个日程": "calendar",
+            "拉个群": "im", "拉群": "im", "聊天": "im", "群": "im",
+            "发消息": "im", "通知": "im", "信息": "im", "聊天记录": "im",
+            "钉一下": "im", "置顶": "im", "加急": "im", "催": "im",
+            "表情": "im", "回应": "im",
+            "数据": "bitable", "写进表格": "bitable", "表格": "bitable",
+            "请假": "approval", "审批": "approval", "流程": "approval",
+            "组织架构": "contact", "联系方式": "contact", "同事": "contact",
+            "通讯录": "contact", "新同事": "contact", "入职": "corehr",
+            "打卡": "attendance", "考勤": "attendance",
+            "知识库": "wiki", "资料": "wiki",
+            "文档": "docx", "分享": "drive",
+            "词典": "baike", "术语": "baike", "百科": "baike",
+            "勋章": "admin",
+            "任务": "task", "待办": "task",
+            "卡片": "cardkit",
+        }
+        for pattern, cat in colloquial_map.items():
+            if pattern in query:
+                if cat not in keywords:
+                    keywords.append(cat)
 
         # 英文关键词直接提取
         en_words = re.findall(r'[a-zA-Z]+', query)
@@ -94,21 +119,19 @@ class CodeModeStrategy(SearchStrategy):
 
         # 从操作意图提取
         operation_map = {
-            "创建": ["create"],
-            "新建": ["create"],
-            "新增": ["create"],
-            "发送": ["create", "send"],
-            "删除": ["delete", "remove"],
-            "移除": ["delete", "remove"],
-            "获取": ["get", "list", "query"],
-            "查询": ["get", "list", "query", "search"],
-            "查看": ["get", "list"],
-            "搜索": ["search"],
-            "更新": ["update", "patch"],
-            "修改": ["update", "patch"],
-            "编辑": ["update", "patch", "edit"],
-            "列出": ["list"],
+            "创建": ["create"], "新建": ["create"], "新增": ["create"],
+            "发送": ["create"], "发个": ["create"],
+            "删除": ["delete"], "移除": ["delete"],
+            "获取": ["get"], "查询": ["search", "query"],
+            "查看": ["get"], "看看": ["list", "get"], "翻翻": ["list"],
+            "搜索": ["search"], "找": ["search", "get"],
+            "更新": ["update"], "修改": ["patch"],
+            "编辑": ["patch"], "列出": ["list"],
             "批量": ["batch"],
+            "添加": ["create"], "加": ["create"],
+            "回复": ["reply"], "转发": ["forward"],
+            "统计": ["query"], "开通": ["create"],
+            "录入": ["create"],
         }
         for cn, en_ops in operation_map.items():
             if cn in query:
@@ -116,37 +139,61 @@ class CodeModeStrategy(SearchStrategy):
 
         return list(set(keywords))
 
-    def _simulate_code_search(self, query: str) -> tuple[list[ToolDefinition], str]:
+    def _simulate_code_search(self, query: str, top_k: int = 5) -> tuple[list[ToolDefinition], str]:
         """
         模拟 LLM 生成的代码搜索行为。
-        返回 (匹配工具列表, 失败模式描述)
+        使用分层匹配：先匹配分类（product），再匹配操作（operation），
+        要求两者都命中才视为有效匹配。
         """
         keywords = self._extract_keywords(query)
         if not keywords:
             return [], "no_keywords_extracted"
 
-        # 模拟代码过滤：基于 path 和 tool_id 关键词匹配
+        # 区分分类关键词和操作关键词
+        category_kws = [kw for kw in keywords if kw in SEMANTIC_INDEX.values() or kw in SEMANTIC_INDEX]
+        operation_kws = [kw for kw in keywords if kw not in category_kws]
+
         matched = []
         for tool in self._all_tools:
             tool_text = f"{tool.tool_id} {tool.path} {tool.description_en}".lower()
-            # 检查是否匹配任何关键词
-            match_score = sum(1 for kw in keywords if kw in tool_text)
-            if match_score > 0:
-                matched.append((tool, match_score))
 
-        # 按匹配度排序
+            # 分类匹配得分
+            cat_score = sum(1 for kw in category_kws if kw in tool_text)
+            # 操作匹配得分
+            op_score = sum(1 for kw in operation_kws if kw in tool_text)
+            # 总分 = 分类权重 * 3 + 操作权重（分类匹配更重要）
+            total_score = cat_score * 3 + op_score
+
+            # 要求至少有一个分类关键词命中（如果有分类关键词的话）
+            if category_kws and cat_score == 0:
+                continue
+            if total_score > 0:
+                matched.append((tool, total_score))
+
+        # 如果没有分类关键词，降级为全匹配但要求多个关键词命中
+        if not matched and not category_kws:
+            for tool in self._all_tools:
+                tool_text = f"{tool.tool_id} {tool.path} {tool.description_en}".lower()
+                score = sum(1 for kw in keywords if kw in tool_text)
+                if score >= 2:  # 至少命中 2 个关键词
+                    matched.append((tool, score))
+
         matched.sort(key=lambda x: x[1], reverse=True)
 
         if not matched:
             return [], "path_naming_mismatch"
 
-        return [t for t, _ in matched], ""
+        # 动态截断：只保留得分 >= 最高分 50% 的结果
+        best_score = matched[0][1]
+        threshold = best_score * 0.5
+        filtered = [(t, s) for t, s in matched if s >= threshold]
 
-    def search(self, query: str, top_k: int = 10) -> SearchResult:
-        matched_tools, failure_mode = self._simulate_code_search(query)
+        return [t for t, _ in filtered[:top_k]], ""
 
-        # 截取 top_k
-        result_tools = matched_tools[:top_k]
+    def search(self, query: str, top_k: int = 5) -> SearchResult:
+        matched_tools, failure_mode = self._simulate_code_search(query, top_k)
+
+        result_tools = matched_tools
         tool_ids = [t.tool_id for t in result_tools]
 
         # Token 消耗计算

@@ -182,8 +182,29 @@ class TreeNavigationStrategy(SearchStrategy):
         """从查询中推断导航路径"""
         paths = []
 
-        # 匹配产品线
+        # 匹配产品线（包含口语映射）
         matched_cats = []
+        # 口语化映射
+        colloquial_cat_map = {
+            "约个会": "calendar", "开会": "calendar", "会议": "calendar",
+            "安排": "calendar", "挂个日程": "calendar",
+            "拉个群": "im", "拉群": "im", "聊天记录": "im",
+            "钉一下": "im", "加急": "im", "催": "im",
+            "表情": "im", "回应": "im",
+            "写进表格": "bitable", "数据": "bitable",
+            "请假": "approval", "流程": "approval",
+            "组织架构": "contact", "联系方式": "contact",
+            "同事": "contact", "新同事": "contact",
+            "入职": "corehr", "录入HR": "corehr",
+            "打卡": "attendance", "没打卡": "attendance",
+            "资料": "wiki", "分享": "drive",
+            "术语": "baike", "百科": "baike",
+            "勋章": "admin",
+        }
+        for pattern, cat in colloquial_cat_map.items():
+            if pattern in query.lower() and cat not in matched_cats:
+                matched_cats.append(cat)
+
         for kw, cat in self._keyword_to_category.items():
             if kw in query.lower():
                 if cat not in matched_cats:
@@ -195,13 +216,26 @@ class TreeNavigationStrategy(SearchStrategy):
         # 匹配操作意图 → 推断子分类
         operation_hints = {
             "消息": "message", "聊天": "chat", "群": "chat",
+            "群聊": "chat", "成员": "chatMembers",
             "记录": "appTableRecord", "字段": "appTableField",
-            "表": "appTable", "视图": "appTableView",
+            "数据表": "appTable", "视图": "appTableView",
+            "表单": "appTableForm",
             "日程": "calendarEvent", "参与人": "calendarEventAttendee",
-            "用户": "user", "部门": "department",
+            "忙闲": "freebusy", "请假日程": "timeoffEvent",
+            "用户": "user", "部门": "department", "用户组": "group",
             "审批实例": "instance", "审批任务": "task",
+            "审批评论": "instanceComment",
             "文件": "file", "权限": "permission",
-            "员工": "employee", "假期": "leave",
+            "员工": "employee", "假期": "leave", "请假": "leave",
+            "异动": "jobChange", "离职": "offboarding",
+            "打卡": "userFlow", "班次": "shift",
+            "空间": "space", "节点": "spaceNode",
+            "词条": "entity",
+            "卡片": "card",
+            "表情": "messageReaction", "置顶": "pin",
+            "公告": "chatAnnouncement",
+            "勋章": "badge", "审计": "auditInfo",
+            "标签页": "chatTab",
         }
         sub_cats = []
         for hint, sub in operation_hints.items():
@@ -231,30 +265,62 @@ class TreeNavigationStrategy(SearchStrategy):
     def description(self) -> str:
         return "层级目录，LLM 逐层下钻选择。结构清晰，适合多 server 聚合场景。"
 
-    def search(self, query: str, top_k: int = 10) -> SearchResult:
+    def search(self, query: str, top_k: int = 5) -> SearchResult:
         total_tokens = 0
         search_rounds = 0
         all_tools = []
 
-        # 推断导航路径
+        # 推断导航路径 — 优先使用最具体的路径
         paths = self._infer_path(query)
 
-        for path in paths:
+        # 优先导航到最深层路径（更具体的子分类）
+        specific_paths = [p for p in paths if "." in p]
+        general_paths = [p for p in paths if "." not in p and p]
+
+        # 如果有具体子分类路径，只用具体的
+        nav_paths = specific_paths if specific_paths else general_paths if general_paths else paths
+
+        for path in nav_paths:
             nav_result = self._navigate(path)
             search_rounds += 1
             nav_text = json.dumps(nav_result, ensure_ascii=False)
             total_tokens += count_tokens(nav_text)
 
-            # 从导航结果中收集工具
             if "tools" in nav_result:
                 for tool_info in nav_result["tools"].values():
                     tool = get_tool_by_id(tool_info["id"])
                     if tool and tool not in all_tools:
                         all_tools.append(tool)
 
-            # 如果只有子分类，继续下钻
+            # 如果是一级分类且没有具体路径，按子分类关键词选择性下钻
             if "categories" in nav_result and "tools" not in nav_result:
-                for sub_key in nav_result["categories"]:
+                # 只下钻到匹配的子分类，不遍历全部
+                sub_hints = {
+                    "消息": "message", "群": "chat", "成员": "chatMembers",
+                    "记录": "appTableRecord", "字段": "appTableField",
+                    "数据表": "appTable", "视图": "appTableView",
+                    "日程": "calendarEvent", "参与人": "calendarEventAttendee",
+                    "忙闲": "freebusy", "请假日程": "timeoffEvent",
+                    "用户": "user", "部门": "department", "用户组": "group",
+                    "审批实例": "instance", "审批任务": "task",
+                    "文件": "file", "权限": "permission",
+                    "词条": "entity", "分类": "classification",
+                    "员工": "employee", "假期": "leave",
+                    "打卡": "userFlow", "班次": "shift",
+                    "空间": "space", "节点": "spaceNode",
+                    "卡片": "card", "组件": "cardElement",
+                    "表情": "messageReaction", "置顶": "pin",
+                    "勋章": "badge",
+                }
+                matched_subs = []
+                for hint, sub_key in sub_hints.items():
+                    if hint in query and sub_key in nav_result["categories"]:
+                        matched_subs.append(sub_key)
+
+                # 如果没匹配到子分类关键词，下钻到所有子分类
+                targets = matched_subs if matched_subs else list(nav_result["categories"].keys())
+
+                for sub_key in targets:
                     sub_path = f"{path}.{sub_key}" if path else sub_key
                     sub_nav = self._navigate(sub_path)
                     search_rounds += 1
@@ -267,13 +333,18 @@ class TreeNavigationStrategy(SearchStrategy):
                             if tool and tool not in all_tools:
                                 all_tools.append(tool)
 
-        # 按操作意图进一步过滤
+        # 按操作意图过滤（强制过滤）
         op_keywords = {
-            "创建": ["create"], "新建": ["create"], "发送": ["create"],
-            "删除": ["delete"], "获取": ["get", "list"],
-            "查询": ["get", "list", "search", "query"],
-            "搜索": ["search"], "更新": ["update", "patch"],
-            "修改": ["update", "patch"], "批量": ["batch"],
+            "创建": ["create"], "新建": ["create"], "新增": ["create"],
+            "发送": ["create"], "删除": ["delete"], "移除": ["delete", "remove"],
+            "获取": ["get"], "查询": ["query", "search", "get"],
+            "查看": ["get"], "搜索": ["search"],
+            "列出": ["list"], "列表": ["list"],
+            "更新": ["update", "patch"], "修改": ["update", "patch"],
+            "批量": ["batch"],
+            "添加": ["create", "add"], "回复": ["reply"],
+            "转发": ["forward"], "撤回": ["delete"],
+            "复制": ["copy"], "移动": ["move"],
         }
         active_ops = []
         for cn, en_ops in op_keywords.items():
@@ -283,7 +354,7 @@ class TreeNavigationStrategy(SearchStrategy):
         if active_ops and all_tools:
             filtered = [
                 t for t in all_tools
-                if any(op in t.operation.lower() or op in t.tool_id.lower()
+                if any(op in t.operation.lower() or op in t.tool_id.split(".")[-1].lower()
                        for op in active_ops)
             ]
             if filtered:

@@ -1,0 +1,347 @@
+# 飞书 MCP 工具搜索评测用例
+# 每个 test case 包含用户查询、变量和期望匹配的工具
+
+# ===== 精确意图 =====
+- description: "精确意图 - 创建多维表格记录"
+  vars:
+    query: "创建一个多维表格记录"
+    candidates: |
+      1. bitable.v1.appTableRecord.create: 新增记录
+      2. bitable.v1.appTableRecord.batchCreate: 批量新增记录
+      3. bitable.v1.appTable.create: 新增数据表
+      4. bitable.v1.app.create: 创建多维表格
+      5. sheets.v3.spreadsheetSheet.write: 写入数据
+  assert:
+    - type: javascript
+      value: |
+        const result = JSON.parse(output);
+        return Array.isArray(result) && result.includes('bitable.v1.appTableRecord.create');
+
+- description: "精确意图 - 发送消息"
+  vars:
+    query: "发送一条消息到群聊"
+    candidates: |
+      1. im.v1.message.create: 发送消息
+      2. im.v1.message.reply: 回复消息
+      3. im.v1.message.forward: 转发消息
+      4. im.v1.chat.create: 创建群聊
+      5. cardkit.v1.card.create: 创建卡片
+  assert:
+    - type: javascript
+      value: |
+        const result = JSON.parse(output);
+        return Array.isArray(result) && result.includes('im.v1.message.create');
+
+- description: "精确意图 - 获取日程列表"
+  vars:
+    query: "获取日程列表"
+    candidates: |
+      1. calendar.v4.calendarEvent.list: 获取日程列表
+      2. calendar.v4.calendarEvent.get: 获取日程信息
+      3. calendar.v4.calendarEvent.search: 搜索日程
+      4. calendar.v4.calendar.list: 获取日历列表
+      5. task.v2.task.list: 获取任务列表
+  assert:
+    - type: javascript
+      value: |
+        const result = JSON.parse(output);
+        return Array.isArray(result) && result.includes('calendar.v4.calendarEvent.list');
+
+- description: "精确意图 - 创建审批实例"
+  vars:
+    query: "创建一个审批实例"
+    candidates: |
+      1. approval.v4.instance.create: 创建审批实例
+      2. approval.v4.approval.create: 创建审批定义
+      3. approval.v4.instance.get: 获取审批实例详情
+      4. approval.v4.task.approve: 同意审批任务
+      5. approval.v4.instance.list: 获取审批实例列表
+  assert:
+    - type: javascript
+      value: |
+        const result = JSON.parse(output);
+        return Array.isArray(result) && result.includes('approval.v4.instance.create');
+
+- description: "精确意图 - 搜索部门"
+  vars:
+    query: "搜索部门信息"
+    candidates: |
+      1. contact.v3.department.search: 搜索部门
+      2. contact.v3.department.list: 获取部门列表
+      3. contact.v3.department.get: 获取单个部门信息
+      4. corehr.v2.department.search: 搜索部门(HR)
+      5. contact.v3.user.list: 获取用户列表
+  assert:
+    - type: javascript
+      value: |
+        const result = JSON.parse(output);
+        return Array.isArray(result) && result.includes('contact.v3.department.search');
+
+- description: "精确意图 - 批量更新记录"
+  vars:
+    query: "批量更新多维表格记录"
+    candidates: |
+      1. bitable.v1.appTableRecord.batchUpdate: 批量更新记录
+      2. bitable.v1.appTableRecord.update: 更新记录
+      3. bitable.v1.appTableRecord.batchCreate: 批量新增记录
+      4. bitable.v1.appTableRecord.batchDelete: 批量删除记录
+      5. bitable.v1.appTableRecord.search: 查询记录
+  assert:
+    - type: javascript
+      value: |
+        const result = JSON.parse(output);
+        return Array.isArray(result) && result.includes('bitable.v1.appTableRecord.batchUpdate');
+
+- description: "精确意图 - 获取群成员"
+  vars:
+    query: "获取群聊成员列表"
+    candidates: |
+      1. im.v1.chatMembers.get: 获取群成员列表
+      2. im.v1.chat.list: 获取群列表
+      3. im.v1.chatMembers.create: 将用户拉入群聊
+      4. im.v1.chat.get: 获取群信息
+      5. contact.v3.group.list: 获取用户组列表
+  assert:
+    - type: javascript
+      value: |
+        const result = JSON.parse(output);
+        return Array.isArray(result) && result.includes('im.v1.chatMembers.get');
+
+# ===== 模糊意图 =====
+- description: "模糊意图 - 写数据到表格"
+  vars:
+    query: "我想把一些数据写进表格里"
+    candidates: |
+      1. bitable.v1.appTableRecord.create: 新增记录
+      2. bitable.v1.appTableRecord.batchCreate: 批量新增记录
+      3. sheets.v3.spreadsheetSheet.write: 写入数据
+      4. sheets.v3.spreadsheetSheet.batchWrite: 批量写入数据
+      5. bitable.v1.appTableField.create: 新增字段
+  assert:
+    - type: javascript
+      value: |
+        const result = JSON.parse(output);
+        const expected = ['bitable.v1.appTableRecord.create', 'bitable.v1.appTableRecord.batchCreate', 'sheets.v3.spreadsheetSheet.write'];
+        return Array.isArray(result) && result.some(id => expected.includes(id));
+
+- description: "模糊意图 - 约个会"
+  vars:
+    query: "帮我约个会"
+    candidates: |
+      1. calendar.v4.calendarEvent.create: 创建日程
+      2. calendar.v4.calendar.create: 创建日历
+      3. im.v1.chat.create: 创建群聊
+      4. task.v2.task.create: 创建任务
+      5. approval.v4.instance.create: 创建审批实例
+  assert:
+    - type: javascript
+      value: |
+        const result = JSON.parse(output);
+        return Array.isArray(result) && result.includes('calendar.v4.calendarEvent.create');
+
+- description: "模糊意图 - 看新消息"
+  vars:
+    query: "看看有没有什么新消息"
+    candidates: |
+      1. im.v1.message.list: 获取会话历史消息
+      2. im.v1.message.get: 获取指定消息内容
+      3. im.v1.chat.list: 获取群列表
+      4. im.v1.message.readUsers: 查询消息已读信息
+      5. search.v2.message.create: 搜索消息
+  assert:
+    - type: javascript
+      value: |
+        const result = JSON.parse(output);
+        return Array.isArray(result) && result.includes('im.v1.message.list');
+
+- description: "模糊意图 - 组织架构"
+  vars:
+    query: "公司组织架构是怎样的"
+    candidates: |
+      1. contact.v3.department.list: 获取部门列表
+      2. contact.v3.department.children: 获取子部门列表
+      3. contact.v3.department.get: 获取部门信息
+      4. contact.v3.user.list: 获取用户列表
+      5. corehr.v2.department.search: 搜索部门
+  assert:
+    - type: javascript
+      value: |
+        const result = JSON.parse(output);
+        const expected = ['contact.v3.department.list', 'contact.v3.department.children'];
+        return Array.isArray(result) && result.some(id => expected.includes(id));
+
+- description: "模糊意图 - 考勤统计"
+  vars:
+    query: "统计一下这个月的考勤情况"
+    candidates: |
+      1. attendance.v1.userStatsData.query: 查询统计数据
+      2. attendance.v1.userTask.query: 查询打卡结果
+      3. attendance.v1.userFlow.query: 查询打卡流水
+      4. attendance.v1.group.list: 获取考勤组列表
+      5. admin.v1.adminUserStat.list: 获取用户活跃统计
+  assert:
+    - type: javascript
+      value: |
+        const result = JSON.parse(output);
+        return Array.isArray(result) && result.includes('attendance.v1.userStatsData.query');
+
+- description: "模糊意图 - 分享文档"
+  vars:
+    query: "这个文档分享给同事看看"
+    candidates: |
+      1. drive.v1.permission.create: 创建文件权限
+      2. drive.v1.permission.update: 更新文件权限
+      3. docx.v1.document.get: 获取文档信息
+      4. im.v1.message.create: 发送消息
+      5. drive.v1.file.copy: 复制文件
+  assert:
+    - type: javascript
+      value: |
+        const result = JSON.parse(output);
+        return Array.isArray(result) && result.includes('drive.v1.permission.create');
+
+# ===== 跨域意图 =====
+- description: "跨域 - 表格数据发消息"
+  vars:
+    query: "在多维表格里新建一条记录，然后发消息通知群里的人"
+    candidates: |
+      1. bitable.v1.appTableRecord.create: 新增记录
+      2. im.v1.message.create: 发送消息
+      3. bitable.v1.appTableRecord.list: 列出记录
+      4. im.v1.chat.list: 获取群列表
+      5. cardkit.v1.card.create: 创建卡片
+  assert:
+    - type: javascript
+      value: |
+        const result = JSON.parse(output);
+        return Array.isArray(result)
+          && result.includes('bitable.v1.appTableRecord.create')
+          && result.includes('im.v1.message.create');
+
+- description: "跨域 - 审批+日程"
+  vars:
+    query: "查看审批状态，如果通过了就在日历上创建日程"
+    candidates: |
+      1. approval.v4.instance.get: 获取审批实例详情
+      2. calendar.v4.calendarEvent.create: 创建日程
+      3. approval.v4.task.list: 获取审批任务列表
+      4. calendar.v4.calendarEvent.list: 获取日程列表
+      5. im.v1.message.create: 发送消息
+  assert:
+    - type: javascript
+      value: |
+        const result = JSON.parse(output);
+        return Array.isArray(result)
+          && result.includes('approval.v4.instance.get')
+          && result.includes('calendar.v4.calendarEvent.create');
+
+- description: "跨域 - 群聊+卡片"
+  vars:
+    query: "创建群聊并发送卡片消息"
+    candidates: |
+      1. im.v1.chat.create: 创建群聊
+      2. im.v1.message.create: 发送消息
+      3. cardkit.v1.card.create: 创建卡片
+      4. im.v1.chatMembers.create: 添加群成员
+      5. im.v1.chat.update: 更新群信息
+  assert:
+    - type: javascript
+      value: |
+        const result = JSON.parse(output);
+        return Array.isArray(result)
+          && result.includes('im.v1.chat.create')
+          && result.includes('im.v1.message.create');
+
+# ===== 中文口语意图 =====
+- description: "中文口语 - 拉群"
+  vars:
+    query: "拉个群把大家加进去"
+    candidates: |
+      1. im.v1.chat.create: 创建群聊
+      2. im.v1.chatMembers.create: 将用户拉入群聊
+      3. im.v1.chat.list: 获取群列表
+      4. contact.v3.group.create: 创建用户组
+      5. im.v1.chat.update: 更新群信息
+  assert:
+    - type: javascript
+      value: |
+        const result = JSON.parse(output);
+        return Array.isArray(result)
+          && result.includes('im.v1.chat.create')
+          && result.includes('im.v1.chatMembers.create');
+
+- description: "中文口语 - 挂日程"
+  vars:
+    query: "挂个日程提醒开会"
+    candidates: |
+      1. calendar.v4.calendarEvent.create: 创建日程
+      2. calendar.v4.calendarEvent.list: 获取日程列表
+      3. task.v2.task.create: 创建任务
+      4. task.v2.task.addReminders: 添加任务提醒
+      5. im.v1.message.urgentApp: 发送应用内加急
+  assert:
+    - type: javascript
+      value: |
+        const result = JSON.parse(output);
+        return Array.isArray(result) && result.includes('calendar.v4.calendarEvent.create');
+
+- description: "中文口语 - 钉消息"
+  vars:
+    query: "把这条消息钉一下"
+    candidates: |
+      1. im.v1.pin.create: Pin消息
+      2. im.v1.message.urgentApp: 发送应用内加急
+      3. im.v1.message.patch: 编辑消息
+      4. im.v1.message.forward: 转发消息
+      5. im.v1.chatAnnouncement.patch: 更新群公告
+  assert:
+    - type: javascript
+      value: |
+        const result = JSON.parse(output);
+        return Array.isArray(result) && result.includes('im.v1.pin.create');
+
+- description: "中文口语 - 谁没打卡"
+  vars:
+    query: "看看谁今天没打卡"
+    candidates: |
+      1. attendance.v1.userTask.query: 查询打卡结果
+      2. attendance.v1.userStatsData.query: 查询统计数据
+      3. attendance.v1.userFlow.query: 查询打卡流水
+      4. attendance.v1.group.list: 获取考勤组列表
+      5. contact.v3.user.list: 获取用户列表
+  assert:
+    - type: javascript
+      value: |
+        const result = JSON.parse(output);
+        const expected = ['attendance.v1.userTask.query', 'attendance.v1.userStatsData.query'];
+        return Array.isArray(result) && result.some(id => expected.includes(id));
+
+- description: "中文口语 - 发表情"
+  vars:
+    query: "发个表情回应一下"
+    candidates: |
+      1. im.v1.messageReaction.create: 添加消息表情回复
+      2. im.v1.message.create: 发送消息
+      3. im.v1.message.reply: 回复消息
+      4. im.v1.messageReaction.list: 获取消息表情回复
+      5. im.v1.message.patch: 编辑消息
+  assert:
+    - type: javascript
+      value: |
+        const result = JSON.parse(output);
+        return Array.isArray(result) && result.includes('im.v1.messageReaction.create');
+
+- description: "中文口语 - 百科加术语"
+  vars:
+    query: "在飞书百科里加个术语解释"
+    candidates: |
+      1. baike.v1.entity.create: 创建词条
+      2. baike.v1.entity.search: 搜索词条
+      3. baike.v1.entity.update: 更新词条
+      4. baike.v1.classification.list: 获取词典分类
+      5. docx.v1.document.create: 创建文档
+  assert:
+    - type: javascript
+      value: |
+        const result = JSON.parse(output);
+        return Array.isArray(result) && result.includes('baike.v1.entity.create');

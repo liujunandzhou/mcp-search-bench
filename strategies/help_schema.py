@@ -164,23 +164,53 @@ class HelpSchemaStrategy(SearchStrategy):
         product_target = ""
         operations = []
 
-        # 匹配产品线
-        for cat_key, meta in CATEGORY_META.items():
-            for kw in meta["keywords"]:
-                if kw in query:
-                    product_target = kw
-                    break
-            if product_target:
+        # 口语化 → 产品线映射（help/schema 的优势：可以维护这个映射）
+        colloquial_product_map = {
+            "约个会": "日历", "开会": "日历", "会议": "日历",
+            "安排": "日历", "挂个日程": "日历",
+            "拉个群": "消息", "拉群": "消息", "聊天记录": "消息",
+            "钉一下": "消息", "加急": "消息", "催": "消息",
+            "表情": "消息", "回应": "消息",
+            "数据": "多维表格", "写进表格": "多维表格",
+            "请假": "审批", "流程": "审批",
+            "组织架构": "通讯录", "联系方式": "通讯录",
+            "同事": "通讯录", "新同事": "通讯录",
+            "入职": "人事", "录入HR": "人事",
+            "打卡": "考勤", "没打卡": "考勤",
+            "资料": "知识库", "分享": "云空间",
+            "术语": "词典", "百科": "词典",
+            "勋章": "管理后台",
+        }
+        for pattern, product_name in colloquial_product_map.items():
+            if pattern in query:
+                product_target = product_name
                 break
 
-        # 匹配操作
+        # 标准关键词匹配
+        if not product_target:
+            for cat_key, meta in CATEGORY_META.items():
+                for kw in meta["keywords"]:
+                    if kw in query:
+                        product_target = kw
+                        break
+                if product_target:
+                    break
+
+        # 匹配操作（扩展口语表达）
         op_map = {
             "创建": "create", "新建": "create", "新增": "create",
-            "发送": "create", "删除": "delete", "获取": "get",
-            "查询": "search", "查看": "get", "搜索": "search",
-            "更新": "update", "修改": "update", "编辑": "patch",
-            "列出": "list", "批量": "batch",
+            "发送": "create", "发个": "create", "加个": "create",
+            "删除": "delete", "移除": "delete",
+            "获取": "get", "查询": "search", "查看": "get",
+            "看看": "list", "翻翻": "list",
+            "搜索": "search", "找": "search",
+            "更新": "update", "修改": "patch",
+            "编辑": "patch", "列出": "list",
+            "批量": "batch", "导入": "batchCreate",
             "回复": "reply", "转发": "forward", "撤回": "delete",
+            "添加": "create", "加": "create",
+            "统计": "query", "开通": "create",
+            "录入": "create",
         }
         for cn, en in op_map.items():
             if cn in query:
@@ -188,7 +218,7 @@ class HelpSchemaStrategy(SearchStrategy):
 
         return product_target, operations
 
-    def search(self, query: str, top_k: int = 10) -> SearchResult:
+    def search(self, query: str, top_k: int = 5) -> SearchResult:
         total_tokens = 0
         search_rounds = 0
 
@@ -216,11 +246,9 @@ class HelpSchemaStrategy(SearchStrategy):
                 for cmd in product.get("commands", []):
                     candidate_commands.append(cmd)
         else:
-            # 没匹配到产品线 → 返回所有产品线摘要
-            # LLM 看到摘要后可以继续选择（但这里模拟单轮）
             pass
 
-        # 按操作过滤
+        # 按操作过滤（必须过滤，不是可选的）
         if operations and candidate_commands:
             filtered = [
                 cmd for cmd in candidate_commands
@@ -230,7 +258,33 @@ class HelpSchemaStrategy(SearchStrategy):
             if filtered:
                 candidate_commands = filtered
 
-        # 阶段二：schema 查询
+        # 二次精排：用查询中的子分类关键词进一步过滤
+        sub_hints = {
+            "消息": "message", "群": "chat", "群聊": "chat", "成员": "Members",
+            "记录": "Record", "字段": "Field", "表": "Table", "视图": "View",
+            "日程": "Event", "参与人": "Attendee", "日历": "calendar",
+            "用户": "user", "部门": "department", "用户组": "group",
+            "实例": "instance", "任务": "task", "评论": "Comment",
+            "文件": "file", "权限": "permission",
+            "词条": "entity", "词典": "entity",
+            "勋章": "badge", "审计": "audit",
+            "员工": "employee", "假期": "leave", "请假": "leave",
+            "异动": "jobChange", "离职": "offboarding",
+            "空间": "space", "节点": "Node",
+            "卡片": "card", "组件": "Element",
+            "打卡": "Flow", "班次": "shift", "考勤": "group",
+            "表情": "Reaction", "置顶": "pin", "公告": "Announcement",
+        }
+        sub_kws = [v for k, v in sub_hints.items() if k in query]
+        if sub_kws and candidate_commands:
+            refined = [
+                cmd for cmd in candidate_commands
+                if any(sk.lower() in cmd["id"].lower() for sk in sub_kws)
+            ]
+            if refined:
+                candidate_commands = refined
+
+        # 阶段二：schema 查询（限制数量）
         result_tools = []
         for cmd in candidate_commands[:top_k]:
             schema_result = self._schema_index.get_schema(cmd["id"])
