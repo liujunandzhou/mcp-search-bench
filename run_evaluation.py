@@ -8,7 +8,10 @@
 3. Embedding - 向量语义检索
 4. 树形导航 - 层级目录逐层下钻
 
-评测指标：召回率、准确率、F1、Token 消耗
+评测指标：
+- 候选集质量：candidate_recall, noise_ratio
+- 最终选择质量：selection_precision, selection_recall, selection_f1
+- Token 消耗
 """
 
 import sys
@@ -75,7 +78,7 @@ def main():
     ]
 
     for s in strategies:
-        print(f"  ✓ {s.name_cn} ({s.name}) - 初始 token: ~{s.get_initial_token_cost()}")
+        print(f"  - {s.name_cn} ({s.name}) - 初始 token: ~{s.get_initial_token_cost()}")
 
     # 运行评测
     print("\n开始评测...")
@@ -85,9 +88,9 @@ def main():
         print(f"\n  评测 {strategy.name_cn}...")
         metrics = run_strategy_evaluation(strategy, dataset)
         all_metrics.append(metrics)
-        print(f"    召回率: {metrics.avg_recall:.1%}, "
-              f"准确率: {metrics.avg_precision:.1%}, "
-              f"F1: {metrics.avg_f1:.1%}, "
+        print(f"    候选召回率: {metrics.avg_candidate_recall:.1%}, "
+              f"噪声率: {metrics.avg_noise_ratio:.1%}, "
+              f"选择F1: {metrics.avg_selection_f1:.1%}, "
               f"平均Token: {metrics.avg_token_cost:,.0f}")
 
     # 打印控制台摘要

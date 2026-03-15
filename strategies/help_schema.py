@@ -1,13 +1,17 @@
 """
 方案二：help/schema
 两阶段确定性查询协议，类比 CLI 的 --help 机制：
-  1. search(type="help", target="多维表格") → 返回命令目录
+  1. search(type="help", target="多维表格") → 返回完整产品线命令目录
   2. search(type="schema", target="bitable.record.create") → 返回完整定义
 
-核心优势：永远不静默失败，找不到时给候选列表。
+核心设计：
+- help 返回完整目录，不做精排（精排是 LLM 的事）
+- 候选集 = 产品线全部工具 → 召回率取决于产品线识别准确性
+- 永不静默失败：找不到时给候选列表
 """
 
 import re
+import json
 from data.tools_registry import (
     get_all_tools, get_tools_by_category, get_tool_by_id,
     ToolDefinition, CATEGORY_META, ALL_TOOL_GROUPS
@@ -74,6 +78,7 @@ class HelpCatalog:
     def search_help(self, target: str) -> dict:
         """
         搜索产品线目录。
+        返回完整的产品线命令目录（不做过滤）。
         找不到时返回所有产品线摘要（永不静默失败）。
         """
         target_lower = target.lower()
@@ -140,7 +145,14 @@ class SchemaIndex:
 
 
 class HelpSchemaStrategy(SearchStrategy):
-    """help/schema 两阶段确定性查询"""
+    """
+    help/schema 两阶段确定性查询。
+
+    评测逻辑：
+    - 候选集 = help 返回的完整产品线目录（所有工具 ID）
+    - 这体现了 help/schema 的核心优势：只要产品线对了，候选集就是完整的
+    - LLM 从完整目录中选择 1-3 个工具（模拟选择阶段）
+    """
 
     def __init__(self):
         self._catalog = HelpCatalog()
@@ -159,157 +171,117 @@ class HelpSchemaStrategy(SearchStrategy):
     def description(self) -> str:
         return "两阶段确定性查询：先语义目录，再精确查定义。永不静默失败。"
 
-    def _extract_intent(self, query: str) -> tuple[str, list[str]]:
-        """提取产品线意图和操作意图"""
-        product_target = ""
-        operations = []
+    def _identify_product_lines(self, query: str) -> list[str]:
+        """
+        识别查询对应的产品线。
+        这是 help/schema 唯一需要做的"搜索"——找到正确的产品线。
+        返回产品线关键词列表。
+        """
+        targets = []
 
-        # 口语化 → 产品线映射（help/schema 的优势：可以维护这个映射）
+        # 口语化 → 产品线映射
         colloquial_product_map = {
             "约个会": "日历", "开会": "日历", "会议": "日历",
-            "安排": "日历", "挂个日程": "日历",
+            "安排": "日历", "挂个日程": "日历", "日程": "日历",
             "拉个群": "消息", "拉群": "消息", "聊天记录": "消息",
             "钉一下": "消息", "加急": "消息", "催": "消息",
-            "表情": "消息", "回应": "消息",
+            "表情": "消息", "回应": "消息", "消息": "消息",
+            "群聊": "消息", "群": "消息",
+            "卡片": "消息",
             "数据": "多维表格", "写进表格": "多维表格",
-            "请假": "审批", "流程": "审批",
+            "多维表格": "多维表格", "记录": "多维表格",
+            "请假": "审批", "流程": "审批", "审批": "审批",
             "组织架构": "通讯录", "联系方式": "通讯录",
-            "同事": "通讯录", "新同事": "通讯录",
+            "同事": "通讯录", "新同事": "通讯录", "部门": "通讯录",
             "入职": "人事", "录入HR": "人事",
-            "打卡": "考勤", "没打卡": "考勤",
-            "资料": "知识库", "分享": "云空间",
+            "打卡": "考勤", "没打卡": "考勤", "考勤": "考勤",
+            "文档": "云文档", "分享": "云空间", "权限": "云空间",
             "术语": "词典", "百科": "词典",
             "勋章": "管理后台",
+            "任务": "任务",
+            "知识库": "知识库",
         }
+
+        matched_names = set()
         for pattern, product_name in colloquial_product_map.items():
             if pattern in query:
-                product_target = product_name
-                break
+                matched_names.add(product_name)
 
         # 标准关键词匹配
-        if not product_target:
+        if not matched_names:
             for cat_key, meta in CATEGORY_META.items():
                 for kw in meta["keywords"]:
                     if kw in query:
-                        product_target = kw
+                        matched_names.add(kw)
                         break
-                if product_target:
-                    break
 
-        # 匹配操作（扩展口语表达）
-        op_map = {
-            "创建": "create", "新建": "create", "新增": "create",
-            "发送": "create", "发个": "create", "加个": "create",
-            "删除": "delete", "移除": "delete",
-            "获取": "get", "查询": "search", "查看": "get",
-            "看看": "list", "翻翻": "list",
-            "搜索": "search", "找": "search",
-            "更新": "update", "修改": "patch",
-            "编辑": "patch", "列出": "list",
-            "批量": "batch", "导入": "batchCreate",
-            "回复": "reply", "转发": "forward", "撤回": "delete",
-            "添加": "create", "加": "create",
-            "统计": "query", "开通": "create",
-            "录入": "create",
-        }
-        for cn, en in op_map.items():
-            if cn in query:
-                operations.append(en)
+        # 转换为产品线关键词
+        for name in matched_names:
+            targets.append(name)
 
-        return product_target, operations
+        return targets if targets else [query]
 
     def search(self, query: str, top_k: int = 5) -> SearchResult:
         total_tokens = 0
         search_rounds = 0
 
-        # 阶段一：help 查询
-        product_target, operations = self._extract_intent(query)
-        if not product_target:
-            product_target = query
+        # 阶段一：识别产品线并获取完整目录
+        product_targets = self._identify_product_lines(query)
 
-        help_result = self._catalog.search_help(product_target)
-        search_rounds += 1
+        all_candidate_ids = []
+        help_matched = False
 
-        # 计算 help 结果的 token
-        import json
-        help_text = json.dumps(help_result, ensure_ascii=False, default=str)
-        help_tokens = count_tokens(help_text)
-        total_tokens += help_tokens
-
-        # 收集候选命令
-        candidate_commands = []
-        if help_result.get("matched"):
-            products = help_result.get("products", [])
-            if not products and "product" in help_result:
-                products = [help_result["product"]]
-            for product in products:
-                for cmd in product.get("commands", []):
-                    candidate_commands.append(cmd)
-        else:
-            pass
-
-        # 按操作过滤（必须过滤，不是可选的）
-        if operations and candidate_commands:
-            filtered = [
-                cmd for cmd in candidate_commands
-                if any(op in cmd.get("operation", "").lower() or op in cmd["id"].lower()
-                       for op in operations)
-            ]
-            if filtered:
-                candidate_commands = filtered
-
-        # 二次精排：用查询中的子分类关键词进一步过滤
-        sub_hints = {
-            "消息": "message", "群": "chat", "群聊": "chat", "成员": "Members",
-            "记录": "Record", "字段": "Field", "表": "Table", "视图": "View",
-            "日程": "Event", "参与人": "Attendee", "日历": "calendar",
-            "用户": "user", "部门": "department", "用户组": "group",
-            "实例": "instance", "任务": "task", "评论": "Comment",
-            "文件": "file", "权限": "permission",
-            "词条": "entity", "词典": "entity",
-            "勋章": "badge", "审计": "audit",
-            "员工": "employee", "假期": "leave", "请假": "leave",
-            "异动": "jobChange", "离职": "offboarding",
-            "空间": "space", "节点": "Node",
-            "卡片": "card", "组件": "Element",
-            "打卡": "Flow", "班次": "shift", "考勤": "group",
-            "表情": "Reaction", "置顶": "pin", "公告": "Announcement",
-        }
-        sub_kws = [v for k, v in sub_hints.items() if k in query]
-        if sub_kws and candidate_commands:
-            refined = [
-                cmd for cmd in candidate_commands
-                if any(sk.lower() in cmd["id"].lower() for sk in sub_kws)
-            ]
-            if refined:
-                candidate_commands = refined
-
-        # 阶段二：schema 查询（限制数量）
-        result_tools = []
-        for cmd in candidate_commands[:top_k]:
-            schema_result = self._schema_index.get_schema(cmd["id"])
+        for target in product_targets:
+            help_result = self._catalog.search_help(target)
             search_rounds += 1
+
+            help_text = json.dumps(help_result, ensure_ascii=False, default=str)
+            help_tokens = count_tokens(help_text)
+            total_tokens += help_tokens
+
+            if help_result.get("matched"):
+                help_matched = True
+                products = help_result.get("products", [])
+                if not products and "product" in help_result:
+                    products = [help_result["product"]]
+                for product in products:
+                    for cmd in product.get("commands", []):
+                        if cmd["id"] not in all_candidate_ids:
+                            all_candidate_ids.append(cmd["id"])
+
+        # 候选集 = help 返回的完整产品线目录（所有工具）
+        # 这是 help/schema 的核心：完整目录作为候选集
+        # LLM 会从中选择，我们不做内部过滤
+
+        # 阶段二：模拟 LLM 查看目录后调用 schema（取前几个作为最终结果）
+        # 但候选集仍然是完整目录
+        result_tools = []
+        schema_checked = 0
+        for tool_id in all_candidate_ids[:top_k]:
+            schema_result = self._schema_index.get_schema(tool_id)
+            search_rounds += 1
+            schema_checked += 1
             schema_text = json.dumps(
-                {"id": cmd["id"], "found": schema_result.get("found")},
+                {"id": tool_id, "found": schema_result.get("found")},
                 ensure_ascii=False
             )
             total_tokens += count_tokens(schema_text)
-
             if schema_result.get("found"):
                 result_tools.append(schema_result["tool"])
 
-        tool_ids = [t.tool_id for t in result_tools]
         meta_tokens = estimate_meta_tool_tokens(HELP_SCHEMA_META_TOOLS)
 
         # 失败模式
         failure_mode = ""
-        if not help_result.get("matched"):
+        if not help_matched:
             failure_mode = "product_not_in_catalog"
-        elif not result_tools:
+        elif not all_candidate_ids:
             failure_mode = "no_matching_commands"
 
+        # 关键：返回的 tool_ids 是完整的产品线目录
+        # 这代表 help/schema 的候选集是完整目录
         return SearchResult(
-            tool_ids=tool_ids,
+            tool_ids=all_candidate_ids,
             tool_definitions=result_tools,
             token_cost=meta_tokens + total_tokens,
             search_rounds=search_rounds,
@@ -317,10 +289,10 @@ class HelpSchemaStrategy(SearchStrategy):
             result_tokens=total_tokens,
             failure_mode=failure_mode,
             details={
-                "product_target": product_target,
-                "operations": operations,
-                "candidates_found": len(candidate_commands),
-                "help_matched": help_result.get("matched", False),
+                "product_targets": product_targets,
+                "help_matched": help_matched,
+                "candidate_count": len(all_candidate_ids),
+                "schema_checked": schema_checked,
             }
         )
 
