@@ -1,6 +1,6 @@
 # 飞书 OpenAPI MCP 工具搜索方案评测报告
 
-> 生成时间: 2026-03-15 15:11:20
+> 生成时间: 2026-03-15 15:23:21
 
 > 评测用例数: 35
 
@@ -11,7 +11,7 @@
 | 方案 | 候选召回率 | 候选集大小 | 噪声率/目录大小 | 初始Token | 平均Token/次 | 总Token | 平均搜索轮次 |
 |------|----------|----------|--------------|----------|-------------|---------|------------|
 | Code Mode | 54.8% | 5.0 | 85.1% | 337 | 508 | 17,790 | 1.0 |
-| help/schema | 91.4% | 39.2 | 目录 39 个 | 226 | 2,080 | 72,801 | 6.1 |
+| help/schema | 91.4% | 39.2 | 目录 39 个 | 226 | 2,080 | 72,791 | 6.1 |
 | Embedding 语义检索 | 73.8% | 4.5 | 76.2% | 191 | 288 | 10,067 | 1.0 |
 | 树形导航 | 51.4% | 3.7 | 67.6% | 328 | 1,414 | 49,481 | 6.1 |
 
@@ -57,7 +57,7 @@
 | 方案 | 用例数 | 候选召回率 | 噪声率 | 选择准确率 | 选择F1 | 平均Token |
 |------|-------|----------|--------|----------|--------|----------|
 | Code Mode | 10 | 60.0% | 84.0% | 52.3% | 55.9% | 504 |
-| help/schema | 10 | 100.0% | 95.0% | 95.2% | 97.6% | 2,028 |
+| help/schema | 10 | 100.0% | 95.0% | 95.2% | 97.6% | 2,027 |
 | Embedding 语义检索 | 10 | 80.0% | 72.7% | 77.1% | 77.7% | 286 |
 | 树形导航 | 10 | 35.0% | 90.7% | 33.6% | 33.9% | 1,035 |
 
@@ -160,8 +160,8 @@
 **未命中案例:**
 
 - `创建一个多维表格记录` (期望: bitable.v1.appTableRecord.create, 返回: bitable.v1.app.create, bitable.v1.appTableRecord.get, bitable.v1.app.get, 漏掉: bitable.v1.appTableRecord.create)
-- `公司组织架构是怎样的` (期望: contact.v3.department.list, contact.v3.department.children, 返回: corehr.v1.company.list, 漏掉: contact.v3.department.children, contact.v3.department.list)
-- `在多维表格里新建一条记录，然后发消息通知群里的人` (期望: bitable.v1.appTableRecord.create, im.v1.message.create, 返回: im.v1.chatMembers.isInChat, bitable.v1.app.create, bitable.v1.appTableRecord.update, 漏掉: bitable.v1.appTableRecord.create, im.v1.message.create)
+- `公司组织架构是怎样的` (期望: contact.v3.department.list, contact.v3.department.children, 返回: corehr.v1.company.list, 漏掉: contact.v3.department.list, contact.v3.department.children)
+- `在多维表格里新建一条记录，然后发消息通知群里的人` (期望: bitable.v1.appTableRecord.create, im.v1.message.create, 返回: im.v1.chatMembers.isInChat, bitable.v1.app.create, bitable.v1.appTableRecord.update, 漏掉: im.v1.message.create, bitable.v1.appTableRecord.create)
 
 ### 树形导航
 
@@ -174,7 +174,7 @@
 **未命中案例:**
 
 - `查询员工的请假记录` (期望: corehr.v1.leave.leaveRequestHistory, 返回: bitable.v1.appTableRecord.get, bitable.v1.appTableRecord.search, corehr.v2.employee.search, 漏掉: corehr.v1.leave.leaveRequestHistory)
-- `我想把一些数据写进表格里` (期望: bitable.v1.appTableRecord.create, bitable.v1.appTableRecord.batchCreate, sheets.v3.spreadsheetSheet.write, 返回: bitable.v1.app.create, bitable.v1.app.get, bitable.v1.app.update, 漏掉: bitable.v1.appTableRecord.create, sheets.v3.spreadsheetSheet.write, bitable.v1.appTableRecord.batchCreate)
+- `我想把一些数据写进表格里` (期望: bitable.v1.appTableRecord.create, bitable.v1.appTableRecord.batchCreate, sheets.v3.spreadsheetSheet.write, 返回: bitable.v1.app.create, bitable.v1.app.get, bitable.v1.app.update, 漏掉: sheets.v3.spreadsheetSheet.write, bitable.v1.appTableRecord.batchCreate, bitable.v1.appTableRecord.create)
 - `帮我约个会` (期望: calendar.v4.calendarEvent.create, 返回: calendar.v4.calendar.create, calendar.v4.calendar.delete, calendar.v4.calendar.get, 漏掉: calendar.v4.calendarEvent.create)
 
 
